@@ -207,6 +207,35 @@ impl Voxels {
     }
 }
 
+struct KDTree{
+    location: Point,
+    left_child: usize,
+    right_child: usize,
+}
+
+type PointOp = fn(&Point) -> f32;
+
+fn make_k_d_tree(mut points: Vec<Point>, depth: usize) { // starting with depth 0
+    let dim = depth % 3;
+    let sorted_fun: PointOp;
+    if dim == 0 {
+        sorted_fun = |p: &Point| p.x;
+    } else {
+        if dim == 1 {
+            sorted_fun = |p: &Point| p.y;
+        } else { // dim == 2
+            sorted_fun = |p: &Point| p.z;
+        }
+    }
+    points.sort_by(|p1, p2| sorted_fun(p2).total_cmp(&sorted_fun(p1)));
+    let med_len = points.len() / 2;
+    let med_point = &points[med_len];
+    let points_before = &points[0..med_len];
+    let points_after = &points[med_len + 1..];
+    // TODO cases where len is 0 or 1 or 2
+
+} 
+
 fn twod_to_threed(width: usize, height: usize, bools: Vec<bool>) -> Voxels {
     let mut rows_of_sections = get_sections(width, height, bools);
     populate_widths(&mut rows_of_sections);

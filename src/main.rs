@@ -156,6 +156,7 @@ struct Voxels {
     cells: Vec<bool>
 }
 
+#[derive(Clone)]
 struct Point {
     x: f32,
     y: f32,
@@ -209,13 +210,21 @@ impl Voxels {
 
 struct KDTree{
     location: Point,
-    left_child: usize,
-    right_child: usize,
+    left_child: Option<usize>,
+    right_child: Option<usize>,
 }
 
 type PointOp = fn(&Point) -> f32;
 
-fn make_k_d_tree(mut points: Vec<Point>, depth: usize) { // starting with depth 0
+fn make_k_d_tree(points: &mut [Point], depth: usize, mut k_d_trees: &mut Vec<KDTree>) -> usize{ // starting with depth 0
+    if points.len() == 1 {
+        k_d_trees.push(KDTree{
+            location: points[0].clone(),
+            left_child: None,
+            right_child: None
+        });
+        return k_d_trees.len() - 1;
+    }
     let dim = depth % 3;
     let sorted_fun: PointOp;
     if dim == 0 {
@@ -227,13 +236,27 @@ fn make_k_d_tree(mut points: Vec<Point>, depth: usize) { // starting with depth 
             sorted_fun = |p: &Point| p.z;
         }
     }
-    points.sort_by(|p1, p2| sorted_fun(p2).total_cmp(&sorted_fun(p1)));
+    points.sort_by(|p1, p2| sorted_fun(p1).total_cmp(&sorted_fun(p2)));
+    if points.len() == 2 {
+        let left_child = make_k_d_tree(&mut points[0..1], depth + 1, &mut k_d_trees);
+        k_d_trees.push(KDTree{
+            location: points[1].clone(),
+            left_child: Some(left_child),
+            right_child: None
+        });
+        return k_d_trees.len() - 1;
+    }
     let med_len = points.len() / 2;
-    let med_point = &points[med_len];
-    let points_before = &points[0..med_len];
-    let points_after = &points[med_len + 1..];
-    // TODO cases where len is 0 or 1 or 2
-
+    let mut points_before = &mut points[0..med_len];
+    let left_child = make_k_d_tree(&mut points_before, depth + 1, &mut k_d_trees);
+    let mut points_after = &mut points[med_len + 1..];
+    let right_child = make_k_d_tree(&mut points_after, depth + 1, &mut k_d_trees);
+    k_d_trees.push(KDTree{
+        location: points[med_len].clone(),
+        left_child: Some(left_child),
+        right_child: Some(right_child)
+    });
+    k_d_trees.len() - 1
 } 
 
 fn twod_to_threed(width: usize, height: usize, bools: Vec<bool>) -> Voxels {
@@ -255,9 +278,17 @@ fn twod_to_threed(width: usize, height: usize, bools: Vec<bool>) -> Voxels {
     Voxels{width, height, depth: max_width, cells: threed}
 }
 
+fn make_kdtrees(voxels: &Voxels) -> (Vec<KDTree>, usize) {
+    let mut border_coords = &mut voxels.get_border_coords()[..];
+    let mut k_d_trees = vec![];
+    let first_kdtree_index = make_k_d_tree(&mut border_coords, 0, &mut k_d_trees);
+    (k_d_trees, first_kdtree_index)
+}
+
 #[macroquad::main("MyGame")]
 async fn main() {
     let ve = load_voxels();
+    let (k_d_trees, first_kdtree_index) = make_kdtrees(&ve);
     println!("width {:?}", ve.width);
     println!("height {:?}", ve.height);
     println!("depth {:?}", ve.depth);

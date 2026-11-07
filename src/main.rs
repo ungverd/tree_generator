@@ -163,6 +163,12 @@ struct Point {
     z: f32
 }
 
+impl Point {
+    fn dist_squared(&self, other: &Point) -> f32 {
+        (self.x - other.x).powi(2) + (self.y - other.y).powi(2) + (self.z - other.z).powi(2)
+    }
+}
+
 impl Voxels {
     fn get_cell(&self, x: usize, y: usize, z: usize) -> bool {
         self.cells[z * self.width * self.depth + y * self.width + x]
@@ -283,6 +289,45 @@ fn make_kdtrees(voxels: &Voxels) -> (Vec<KDTree>, usize) {
     let mut k_d_trees = vec![];
     let first_kdtree_index = make_k_d_tree(&mut border_coords, 0, &mut k_d_trees);
     (k_d_trees, first_kdtree_index)
+}
+
+struct Hr {
+    min_x: f32,
+    min_y: f32,
+    min_z: f32,
+    max_x: f32,
+    max_y: f32,
+    max_z: f32
+}
+
+fn get_one_coord(min_c: f32, c: f32, max_c: f32) -> f32 {
+    if c < min_c {min_c} else {
+        if c > max_c {max_c} else {c}
+    }
+}
+
+impl Hr {
+    fn min_dist_sqared(&self, p: &Point) -> f32 {
+        let x = get_one_coord(self.min_x, p.x, self.max_x);
+        let y = get_one_coord(self.min_y, p.y, self.max_y);
+        let z = get_one_coord(self.min_z, p.z, self.max_z);
+        p.dist_squared(&Point{x, y, z})
+    }
+}
+
+fn get_nearest_neighbor(kdtrees: &Vec<KDTree>,
+                        kdtree_num: Option<usize>,
+                        depth: usize,
+                        hr: &Hr,
+                        max_dst_sqd: f32) -> f32 {
+    match kdtree_num {
+        None => {return f32::INFINITY}
+        Some(num) => {
+            let kdtree = &kdtrees[num];
+            let pivot = &kdtree.location;
+            0. // TODO
+        }
+    }
 }
 
 #[macroquad::main("MyGame")]

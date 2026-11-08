@@ -313,19 +313,108 @@ impl Hr {
         let z = get_one_coord(self.min_z, p.z, self.max_z);
         p.dist_squared(&Point{x, y, z})
     }
+
+    fn split(&self, p: &Point, dim: usize) -> (Hr, Hr) {
+        if dim == 0 {
+            (Hr{min_x: self.min_x,
+                min_y: self.min_y,
+                min_z: self.min_z,
+                max_x: p.x,
+                max_y: self.max_y,
+                max_z: self.max_z},
+             Hr{min_x: p.x,
+                min_y: self.min_y,
+                min_z: self.min_z,
+                max_x: self.max_x,
+                max_y: self.max_y,
+                max_z: self.max_z})
+        } else {
+            if dim == 1 {
+                (Hr{min_x: self.min_x,
+                    min_y: self.min_y,
+                    min_z: self.min_z,
+                    max_x: self.max_x,
+                    max_y: p.y,
+                    max_z: self.max_z},
+                 Hr{min_x: self.min_x,
+                    min_y: p.y,
+                    min_z: self.min_z,
+                    max_x: self.max_x,
+                    max_y: self.max_y,
+                    max_z: self.max_z})
+            } else { // dim == 2
+                (Hr{min_x: self.min_x,
+                    min_y: self.min_y,
+                    min_z: self.min_z,
+                    max_x: self.max_x,
+                    max_y: self.max_y,
+                    max_z: p.z},
+                 Hr{min_x: self.min_x,
+                    min_y: self.min_y,
+                    min_z: p.z,
+                    max_x: self.max_x,
+                    max_y: self.max_y,
+                    max_z: self.max_z})
+            }
+        }
+    }
 }
 
-fn get_nearest_neighbor(kdtrees: &Vec<KDTree>,
+fn get_nearest_neighbor(target: &Point,
+                        kdtrees: &Vec<KDTree>,
                         kdtree_num: Option<usize>,
                         depth: usize,
                         hr: &Hr,
-                        max_dst_sqd: f32) -> f32 {
+                        max_dst_sqd: f32) -> (f32, Option<&Point>) { // TODO
     match kdtree_num {
-        None => {return f32::INFINITY}
+        None => {return (f32::INFINITY, None)}
         Some(num) => {
             let kdtree = &kdtrees[num];
             let pivot = &kdtree.location;
-            0. // TODO
+            let dim = depth % 3;
+            let (left_hr, right_hr) = hr.split(pivot, dim);
+            let target_in_left;
+            if dim == 0 {
+                target_in_left = target.x < pivot.x;
+            } else {
+                if dim == 1 {
+                    target_in_left = target.y < pivot.y;
+                } else {
+                    target_in_left = target.z < pivot.z;
+                }
+            }
+            let near_kd;
+            let far_kd;
+            let near_hr;
+            let far_hr;
+            if target_in_left {
+                near_kd = kdtree.left_child;
+                far_kd = kdtree.right_child;
+                near_hr = left_hr;
+                far_hr = right_hr;
+            } else {
+                near_kd = kdtree.right_child;
+                far_kd = kdtree.left_child;
+                near_hr = right_hr;
+                far_hr = left_hr;
+            }
+            let (mut dist_sqd, nearest) = get_nearest_neighbor(target, kdtrees, near_kd, depth + 1, &near_hr, max_dst_sqd);
+            let max_dst_sqd = if max_dst_sqd < dist_sqd {max_dst_sqd} else {dist_sqd};
+            let mut nearest = None;
+            if far_hr.min_dist_sqared(target) <= max_dst_sqd {
+                let d_s = pivot.dist_squared(target);
+                if d_s <= dist_sqd {
+                    nearest = Some(pivot);
+                    dist_sqd = d_s;
+
+                }
+                let (tmp_dst_sqd, tmp_nearest) = get_nearest_neighbor(target, kdtrees, far_kd, depth + 1, &far_hr, max_dst_sqd);
+                if tmp_dst_sqd < dist_sqd {
+                    nearest = tmp_nearest;
+                    dist_sqd = tmp_dst_sqd;
+                }
+            }
+            (dist_sqd, nearest)
         }
     }
 }
